@@ -120,7 +120,12 @@ function validateDescription(html: string): boolean {
     .toLowerCase()
     .replace(/[.\s]+/g, " ")
     .trim();
-  if (lowerCleaned === "no describe" || lowerCleaned === "no description") {
+  if (
+    lowerCleaned === "no describe" ||
+    lowerCleaned === "no description" ||
+    lowerCleaned === "暂无描述" ||
+    lowerCleaned.includes("暂无描述")
+  ) {
     return false;
   }
   return cleaned.length > 0;
@@ -274,7 +279,7 @@ async function runAudit() {
     });
 
     // Limit iterations to process for testing
-    const LIMIT_ITERATIONS = 1; // Set to null to process all iterations
+    const LIMIT_ITERATIONS = 2; // Set to null to process all iterations
     const iterationsToRun = LIMIT_ITERATIONS
       ? iterationsToProcess.slice(0, LIMIT_ITERATIONS)
       : iterationsToProcess;
@@ -375,39 +380,64 @@ async function runAudit() {
 
           // Check for Task Description (in iframe or top-level)
           let articleHtml = "";
-          const activeIframe = page
-            .frameLocator('iframe[id^="appIframe-"]')
-            .first();
-          const descSectionIframe = activeIframe.locator(
-            'div[zui-key="Task Description"]',
-          );
-          if ((await descSectionIframe.count()) > 0) {
-            const article = descSectionIframe.locator(".article").first();
-            if ((await article.count()) > 0) {
-              articleHtml = await article.innerHTML();
+          const iframeSelector = 'iframe[id^="appIframe-"]';
+          const hasIframe = (await page.locator(iframeSelector).count()) > 0;
+
+          if (hasIframe) {
+            const activeIframe = page.frameLocator(iframeSelector).first();
+            const descSectionIframe = activeIframe.locator(
+              'div[zui-key="Task Description"], .detail-section[zui-key="Task Description"], .detail-section',
+            );
+
+            // Wait for description section to load inside iframe
+            await descSectionIframe
+              .first()
+              .waitFor({ state: "visible", timeout: 15000 })
+              .catch(() => {
+                console.log(
+                  "[WARN] Timeout waiting for description section inside iframe.",
+                );
+              });
+
+            if ((await descSectionIframe.count()) > 0) {
+              const article = activeIframe.locator(".article").first();
+              if ((await article.count()) > 0) {
+                articleHtml = await article.innerHTML();
+              }
+            } else {
+              const fallbackArticleIframe = activeIframe
+                .locator(".detail-section-content .article")
+                .first();
+              if ((await fallbackArticleIframe.count()) > 0) {
+                articleHtml = await fallbackArticleIframe.innerHTML();
+              }
             }
           } else {
-            const fallbackArticleIframe = activeIframe
-              .locator(".detail-section-content .article")
-              .first();
-            if ((await fallbackArticleIframe.count()) > 0) {
-              articleHtml = await fallbackArticleIframe.innerHTML();
+            const descSectionTop = page.locator(
+              'div[zui-key="Task Description"], .detail-section[zui-key="Task Description"], .detail-section',
+            );
+
+            // Wait for description section to load on top-level
+            await descSectionTop
+              .first()
+              .waitFor({ state: "visible", timeout: 15000 })
+              .catch(() => {
+                console.log(
+                  "[WARN] Timeout waiting for description section on top-level.",
+                );
+              });
+
+            if ((await descSectionTop.count()) > 0) {
+              const article = descSectionTop.locator(".article").first();
+              if ((await article.count()) > 0) {
+                articleHtml = await article.innerHTML();
+              }
             } else {
-              const descSectionTop = page.locator(
-                'div[zui-key="Task Description"]',
-              );
-              if ((await descSectionTop.count()) > 0) {
-                const article = descSectionTop.locator(".article").first();
-                if ((await article.count()) > 0) {
-                  articleHtml = await article.innerHTML();
-                }
-              } else {
-                const fallbackArticleTop = page
-                  .locator(".detail-section-content .article")
-                  .first();
-                if ((await fallbackArticleTop.count()) > 0) {
-                  articleHtml = await fallbackArticleTop.innerHTML();
-                }
+              const fallbackArticleTop = page
+                .locator(".detail-section-content .article")
+                .first();
+              if ((await fallbackArticleTop.count()) > 0) {
+                articleHtml = await fallbackArticleTop.innerHTML();
               }
             }
           }
