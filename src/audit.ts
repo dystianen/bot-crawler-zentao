@@ -274,7 +274,7 @@ async function generateDescriptionWithGemini(
       </ol>`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {
@@ -489,7 +489,7 @@ async function runAudit() {
       return results;
     });
 
-    const LIMIT_ITERATIONS = 2;
+    const LIMIT_ITERATIONS = null;
     const iterationsToRun = LIMIT_ITERATIONS
       ? iterationsToProcess.slice(0, LIMIT_ITERATIONS)
       : iterationsToProcess;
